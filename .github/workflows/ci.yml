@@ -25,19 +25,17 @@ jobs:
       run: dotnet build ./src/HAEventHub.sln --configuration Release --no-restore
     - name: Test
       run: dotnet test ./src/HAEventHub.sln --no-restore --verbosity normal
-    - name: Publish functions
+    - name: Publish Function App
       run: dotnet publish ./src/EventHubMerge/EventHubMerge.csproj --configuration Release --output ${{ env.OUTPUT_PATH }}
-    - name: Package functions
-      uses: actions/upload-artifact@v1
+    - name: Zip Function App
+      shell: pwsh
+      run: Compress-Archive -Path "${{ env.OUTPUT_PATH }}/*" -DestinationPath "${{ env.OUTPUT_PATH }}/EventHubMerge.zip"
+    - name: Automatic Releases
+      uses: "marvinpinto/action-automatic-releases@latest"
       with:
-          name: functions
-          path: ${{ env.OUTPUT_PATH }}
-    # - name: Automatic Releases
-    #   uses: "marvinpinto/action-automatic-releases@latest"
-    #   with:
-    #     repo_token: "${{ secrets.GITHUB_TOKEN }}"
-    #     automatic_release_tag: "latest"
-    #     prerelease: true
-    #     title: "Development Build"
-    #     files: |
-    #       ./publish/EventHubMerge.zip
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        automatic_release_tag: "latest"
+        prerelease: true
+        title: "Development Build"
+        files: |
+          ${{ env.OUTPUT_PATH }}/EventHubMerge.zip
