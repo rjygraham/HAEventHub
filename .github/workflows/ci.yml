@@ -1,0 +1,36 @@
+name: CI Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 3.1.101
+    - name: Install dependencies
+      run: dotnet restore ./src/HAEventHubs.sln
+    - name: Build
+      run: dotnet build ./src/HAEventHubs.sln --configuration Release --no-restore
+    - name: Test
+      run: dotnet test ./src/HAEventHubs.sln --no-restore --verbosity normal
+    - name: Publish
+      run: dotnet build ./src/EventHubMerge/EventHubMerge.csproj -p:DeployOnBuild=true -p:PublishProfile=Release -p:WebPublishMethod=Package -p:PackageAsSingleFile=true -p:platform="Any CPU" -p:Configuration="Release" -o ./publish
+    - name: Automatic Releases
+      uses: "marvinpinto/action-automatic-releases@latest"
+      with:
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        automatic_release_tag: "latest"
+        prerelease: true
+        title: "Development Build"
+        files: |
+          ./publish/EventHubMerge.zip

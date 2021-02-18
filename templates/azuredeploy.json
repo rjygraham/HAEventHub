@@ -1,0 +1,395 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "name": {
+            "type": "string",
+            "metadata": {
+                "description": "Base name for resources as part of the solution."
+            }
+        },
+        "regions": {
+            "type": "array",
+            "defaultValue": [
+                "eastus",
+                "westus"
+            ],
+            "metadata": {
+                "description": "Regions to which the solution will be deployed."
+            }
+        },
+        "eventHubSku": {
+            "defaultValue": "Standard",
+            "allowedValues": [
+                "Basic",
+                "Standard"
+            ],
+            "type": "String",
+            "metadata": {
+                "description": "Specifies the messaging tier for Event Hub Namespace."
+            }
+        },
+        "workspaceResourceId": {
+            "type": "string",
+            "metadata": {
+                "description": "Log Analytics workspace Resource ID to which the Application Insights resource should be linked."
+            }
+        },
+        "zipPackageUrl": {
+            "type": "string",
+            "defaultValue": "https://github.com/rjygraham/HAEventHubs/releases/download/latest/EventHubMerge.zip",
+            "metadata": {
+                "description": "URL to MSDeploy zip file of Function App to do the Event Hubs merge."
+            }
+        }
+    },
+    "variables": {
+        "emptyArray": []
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Resources/resourceGroups",
+            "apiVersion": "2019-10-01",
+            "name": "[toUpper(concat(parameters('name'), '-', parameters('regions')[copyIndex('resourceGroupCopy')]))]",
+            "location": "eastus",
+            "copy": {
+                "name": "resourceGroupCopy",
+                "count": "[length(parameters('regions'))]",
+                "mode": "Parallel"
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2020-06-01",
+            "name": "[concat('eventhub.', parameters('regions')[copyIndex('eventHubCopy')])]",
+            "dependsOn": [
+                "resourceGroupCopy"
+            ],
+            "copy": {
+                "name": "eventHubCopy",
+                "count": "[length(parameters('regions'))]",
+                "mode": "Serial"
+            },
+            "resourceGroup": "[concat(parameters('name'), '-', parameters('regions')[copyIndex('eventHubCopy')])]",
+            "properties": {
+                "expressionEvaluationOptions": {
+                    "scope": "inner"
+                },
+                "mode": "Incremental",
+                "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {
+                        "name": {
+                            "type": "string"
+                        },
+                        "region": {
+                            "type": "string"
+                        },
+                        "eventHubSku": {
+                            "type": "string"
+                        },
+                        "authorizationRules": {
+                            "type": "array"
+                        }
+                    },
+                    "variables": {
+                        "regionBaseName": "[toLower(concat(parameters('name'), '-', parameters('region')))]",
+                        "eventHubNamespaceName": "[concat(variables('regionBaseName'), '-evhub')]",
+                        "eventHubNamespaceResourceId": "[resourceId('Microsoft.EventHub/namespaces', variables('eventHubNamespaceName'))]",
+                        "eventHubConsumerGroupName": "[concat(variables('eventHubName'), '.replicator')]",
+                        "eventHubName": "telemetry",
+                        "eventHubAuthorizationRuleName": "replication-sendlisten",
+                        "eventHubAuthorizationRuleResourceId": "[resourceId('Microsoft.EventHub/namespaces/eventhubs/authorizationRules', variables('eventHubNamespaceName'), variables('eventHubName'), variables('eventHubAuthorizationRuleName'))]",
+                        "eventHubResourceId": "[resourceId('Microsoft.EventHub/namespaces/eventhubs', variables('eventHubNamespaceName'), variables('eventHubName'))]"
+                    },
+                    "resources": [
+                        {
+                            "type": "Microsoft.EventHub/namespaces",
+                            "apiVersion": "2018-01-01-preview",
+                            "name": "[variables('eventHubNamespaceName')]",
+                            "location": "[parameters('region')]",
+                            "sku": {
+                                "name": "[parameters('eventHubSku')]",
+                                "tier": "[parameters('eventHubSku')]",
+                                "capacity": 1
+                            },
+                            "properties": {
+                                "isAutoInflateEnabled": false,
+                                "maximumThroughputUnits": 0
+                            },
+                            "resources": [
+                                {
+                                    "type": "eventhubs",
+                                    "apiVersion": "2017-04-01",
+                                    "name": "[variables('eventHubName')]",
+                                    "dependsOn": [
+                                        "[variables('eventHubNamespaceResourceId')]"
+                                    ],
+                                    "properties": {
+                                        "messageRetentionInDays": 1,
+                                        "partitionCount": 4
+                                    },
+                                    "resources": [
+                                        {
+                                            "type": "consumergroups",
+                                            "apiVersion": "2017-04-01",
+                                            "name": "[variables('eventHubConsumerGroupName')]",
+                                            "dependsOn": [
+                                                "[variables('eventHubResourceId')]"
+                                            ],
+                                            "properties": {}
+                                        },
+                                        {
+                                            "type": "authorizationRules",
+                                            "apiVersion": "2017-04-01",
+                                            "name": "[variables('eventHubAuthorizationRuleName')]",
+                                            "dependsOn": [
+                                                "[variables('eventHubResourceId')]"
+                                            ],
+                                            "properties": {
+                                                "rights": [
+                                                    "send",
+                                                    "listen"
+                                                ]
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "outputs": {
+                        "authorizationRules": {
+                            "type": "array",
+                            "value": "[concat(parameters('authorizationRules'), array(listkeys(variables('eventHubAuthorizationRuleResourceId'), '2017-04-01').primaryConnectionString))]"
+                        },
+                        "consumerGroup": {
+                            "type": "string",
+                            "value": "[variables('eventHubConsumerGroupName')]"
+                        }
+                    }
+                },
+                "parameters": {
+                    "name": {
+                        "value": "[parameters('name')]"
+                    },
+                    "region": {
+                        "value": "[parameters('regions')[copyIndex('eventHubCopy')]]"
+                    },
+                    "eventHubSku": {
+                        "value": "[parameters('eventHubSku')]"
+                    },
+                    "authorizationRules": {
+                        "value": "[if(equals(copyIndex('eventHubCopy'), 0), variables('emptyArray'), reference(concat('eventhub.', parameters('regions')[sub(copyIndex('eventHubCopy'), 1)])).outputs.authorizationRules.value)]"
+                    }
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2020-06-01",
+            "name": "[concat('region.', parameters('regions')[copyIndex('regionCopy')])]",
+            "dependsOn": [
+                "eventHubCopy"
+            ],
+            "copy": {
+                "name": "regionCopy",
+                "count": "[length(parameters('regions'))]",
+                "mode": "Parallel"
+            },
+            "resourceGroup": "[concat(parameters('name'), '-', parameters('regions')[copyIndex('regionCopy')])]",
+            "properties": {
+                "expressionEvaluationOptions": {
+                    "scope": "inner"
+                },
+                "mode": "Incremental",
+                "template": {
+                    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {
+                        "name": {
+                            "type": "string"
+                        },
+                        "region": {
+                            "type": "string"
+                        },
+                        "workspaceResourceId": {
+                            "type": "string"
+                        },
+                        "eventHubConnectionStrings": {
+                            "type": "array"
+                        },
+                        "eventHubConsumerGroupName": {
+                            "type": "string"
+                        },
+                        "copyIndex": {
+                            "type": "int"
+                        },
+                        "zipPackageUrl": {
+                            "type": "string"
+                        }
+                    },
+                    "variables": {
+                        "regionBaseName": "[toLower(concat(parameters('name'), '-', parameters('region')))]",
+                        "appInsightsName": "[concat(variables('regionBaseName'), '-appinsights')]",
+                        "appInsightsResourceId": "[resourceId('microsoft.insights/components', variables('appInsightsName'))]",
+                        "functionServerFarmName": "[concat(variables('functionAppName'), '-serverfarm')]",
+                        "functionServerFarmResourceId": "[resourceId('Microsoft.Web/serverfarms', variables('functionServerFarmName'))]",
+                        "functionStorageAccountName": "[replace(concat(variables('functionAppName'), 'stg'), '-', '')]",
+                        "functionStorageAccountResourceId": "[resourceId('Microsoft.Storage/storageAccounts', variables('functionStorageAccountName'))]",
+                        "functionAppName": "[concat(variables('regionBaseName'), '-func')]",
+                        "functionAppResourceId": "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
+                    },
+                    "resources": [
+                        {
+                            "type": "microsoft.insights/components",
+                            "apiVersion": "2020-02-02-preview",
+                            "name": "[variables('appInsightsName')]",
+                            "location": "[parameters('region')]",
+                            "properties": {
+                                "ApplicationId": "[variables('appInsightsName')]",
+                                "Application_Type": "web",
+                                "WorkspaceResourceId": "[parameters('workspaceResourceId')]"
+                            }
+                        },
+                        {
+                            "type": "Microsoft.Storage/storageAccounts",
+                            "apiVersion": "2019-06-01",
+                            "name": "[variables('functionStorageAccountName')]",
+                            "location": "[parameters('region')]",
+                            "sku": {
+                                "name": "Standard_LRS"
+                            },
+                            "properties": {
+                                "supportsHttpsTrafficOnly": true,
+                                "minimumTlsVersion": "TLS1_2"
+                            }
+                        },
+                        {
+                            "type": "Microsoft.Web/serverfarms",
+                            "apiVersion": "2018-11-01",
+                            "name": "[variables('functionServerFarmName')]",
+                            "location": "[parameters('region')]",
+                            "sku": {
+                                "Tier": "Dynamic",
+                                "Name": "Y1"
+                            },
+                            "properties": {
+                                "name": "[variables('functionServerFarmName')]",
+                                "workerSize": "0",
+                                "workerSizeId": "0",
+                                "numberOfWorkers": "1"
+                            }
+                        },
+                        {
+                            "type": "Microsoft.Web/sites",
+                            "apiVersion": "2018-11-01",
+                            "name": "[variables('functionAppName')]",
+                            "location": "[parameters('region')]",
+                            "dependsOn": [
+                                "[variables('appInsightsResourceId')]",
+                                "[variables('functionServerFarmResourceId')]",
+                                "[variables('functionStorageAccountResourceId')]"
+                            ],
+                            "kind": "functionapp",
+                            "properties": {
+                                "name": "[variables('functionAppName')]",
+                                "siteConfig": {
+                                    "appSettings": [
+                                        {
+                                            "name": "FUNCTIONS_EXTENSION_VERSION",
+                                            "value": "~3"
+                                        },
+                                        {
+                                            "name": "FUNCTIONS_WORKER_RUNTIME",
+                                            "value": "dotnet"
+                                        },
+                                        {
+                                            "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+                                            "value": "[reference(variables('appInsightsResourceId'), '2015-05-01').InstrumentationKey]"
+                                        },
+                                        {
+                                            "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                                            "value": "[reference(variables('appInsightsResourceId'), '2015-05-01').ConnectionString]"
+                                        },
+                                        {
+                                            "name": "AzureWebJobsStorage",
+                                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('functionStorageAccountName'),';AccountKey=',listKeys(variables('functionStorageAccountResourceId'), '2019-06-01').keys[0].value,';EndpointSuffix=core.windows.net')]"
+                                        },
+                                        {
+                                            "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+                                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('functionStorageAccountName'),';AccountKey=',listKeys(variables('functionStorageAccountResourceId'), '2019-06-01').keys[0].value,';EndpointSuffix=core.windows.net')]"
+                                        },
+                                        {
+                                            "name": "WEBSITE_CONTENTSHARE",
+                                            "value": "[variables('functionAppName')]"
+                                        },
+                                        {
+                                            "name": "LocalEventHubConnection",
+                                            "value": "[if(equals(parameters('copyIndex'), 0), parameters('eventHubConnectionStrings')[0], parameters('eventHubConnectionStrings')[1])]"
+                                        },
+                                        {
+                                            "name": "RemoteEventHubConnection",
+                                            "value": "[if(equals(parameters('copyIndex'), 0), parameters('eventHubConnectionStrings')[1], parameters('eventHubConnectionStrings')[0])]"
+                                        },
+                                        {
+                                            "name": "LocalConsumerGroupName",
+                                            "value": "[parameters('eventHubConsumerGroupName')]"
+                                        }
+                                    ],
+                                    "use32BitWorkerProcess": true
+                                },
+                                "serverFarmId": "[variables('functionServerFarmResourceId')]",
+                                "clientAffinityEnabled": false
+                            },
+                            "resources": [
+                                {
+                                    "name": "MSDeploy",
+                                    "type": "extensions",
+                                    "location": "[parameters('region')]",
+                                    "apiVersion": "2015-08-01",
+                                    "dependsOn": [
+                                        "[variables('functionAppResourceId')]"
+                                    ],
+                                    "properties": {
+                                        "packageUri": "[parameters('zipPackageUrl')]"
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "parameters": {
+                    "name": {
+                        "value": "[parameters('name')]"
+                    },
+                    "region": {
+                        "value": "[parameters('regions')[copyIndex('regionCopy')]]"
+                    },
+                    "workspaceResourceId": {
+                        "value": "[parameters('workspaceResourceId')]"
+                    },
+                    "eventHubConnectionStrings": {
+                        "value": "[reference(concat('eventhub.', parameters('regions')[sub(length(parameters('regions')), 1)])).outputs.authorizationRules.value]"
+                    },
+                    "eventHubConsumerGroupName": {
+                        "value": "[reference(concat('eventhub.', parameters('regions')[copyIndex('regionCopy')])).outputs.consumerGroup.value]"
+                    },
+                    "copyIndex": {
+                        "value": "[copyIndex('regionCopy')]"
+                    },
+                    "zipPackageUrl": {
+                        "value": "[parameters('zipPackageUrl')]"
+                    }
+                }
+            }
+        }
+    ],
+    "outputs": {
+        "eventHubConnectionStrings": {
+            "type": "array",
+            "value": "[reference(concat('eventhub.', parameters('regions')[sub(length(parameters('regions')), 1)])).outputs.authorizationRules.value]"
+        }
+    }
+}

@@ -1,0 +1,7 @@
+{
+  "profiles": {
+    "EventHubMerge": {
+      "commandName": "Project"
+    }
+  }
+}

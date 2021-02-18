@@ -1,0 +1,7 @@
+{
+  "profiles": {
+    "EventHubProducer": {
+      "commandName": "Project"
+    }
+  }
+}
