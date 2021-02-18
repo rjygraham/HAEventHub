@@ -33,7 +33,7 @@ Complete the following steps once the ARM template has successfully deployed:
 1. Set `EventHubProducer` as the Startup Project and do one of the following:
     1. Replace the placeholder text in the `CommandLineOptions.cs` file in the `EventHubProducer` project with the Event Hub connection string and full path (including file name) to the `Sensors.txt` you created earlier.
     2. Specify the Connection String `-c` and Sensors File `-s` command line args during start-up of the `EventHubProducer`.
-1. OPTIONAL: Edit and save `Sensors.txt` while the `EventHubProducer` to simulate the addition/removal of sensors.
+1. OPTIONAL: To simulate the addition/removal of sensors, edit and save `Sensors.txt` while `EventHubProducer` is running.
 
 ## License
 
