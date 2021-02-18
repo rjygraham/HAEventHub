@@ -1,9 +1,11 @@
 name: CI Build
 
+env:
+    OUTPUT_PATH: ${{ github.workspace }}/.output
+    DOTNET_VERSION: "3.1.x"
+
 on:
   push:
-    branches: [ main ]
-  pull_request:
     branches: [ main ]
 
 jobs:
@@ -16,21 +18,26 @@ jobs:
     - name: Setup .NET Core
       uses: actions/setup-dotnet@v1
       with:
-        dotnet-version: 3.1.x
+        dotnet-version: ${{ env.DOTNET_VERSION }}
     - name: Install dependencies
       run: dotnet restore ./src/HAEventHub.sln
     - name: Build
       run: dotnet build ./src/HAEventHub.sln --configuration Release --no-restore
     - name: Test
       run: dotnet test ./src/HAEventHub.sln --no-restore --verbosity normal
-    - name: Publish
-      run: dotnet build ./src/EventHubMerge/EventHubMerge.csproj -p:DeployOnBuild=true -p:PublishProfile=Release -p:WebPublishMethod=Package -p:PackageAsSingleFile=true -p:platform="Any CPU" -p:Configuration="Release" -o ./publish
-    - name: Automatic Releases
-      uses: "marvinpinto/action-automatic-releases@latest"
+    - name: Publish functions
+      run: dotnet publish ./src/EventHubMerge/EventHubMerge.csproj --configuration Release --output ${{ env.OUTPUT_PATH }}
+    - name: Package functions
+      uses: actions/upload-artifact@v1
       with:
-        repo_token: "${{ secrets.GITHUB_TOKEN }}"
-        automatic_release_tag: "latest"
-        prerelease: true
-        title: "Development Build"
-        files: |
-          ./publish/EventHubMerge.zip
+          name: functions
+          path: ${{ env.OUTPUT_PATH }}
+    # - name: Automatic Releases
+    #   uses: "marvinpinto/action-automatic-releases@latest"
+    #   with:
+    #     repo_token: "${{ secrets.GITHUB_TOKEN }}"
+    #     automatic_release_tag: "latest"
+    #     prerelease: true
+    #     title: "Development Build"
+    #     files: |
+    #       ./publish/EventHubMerge.zip
