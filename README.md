@@ -14,7 +14,11 @@ After deploying the ARM template in this repository, you will have the following
 
 ## Setup
 
-Deploy the subscription ARM template in the `templates` folder.
+Deploy the subscription ARM template in the `templates` folder directly from the GitHub repo by clicking the Deploy to Azure link below:
+
+[![Deploy To Azure](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/deploytoazure.svg?sanitize=true)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Frjygraham%2FHAEventHub%2Fmain%2Ftemplates%2Fazuredeploy.json)
+
+Or clone/download the repo and deploy from your local machine:
 
 - Azure PowerShell (from root of repo): `New-AzSubscriptionDeployment -Location eastus -TemplateFile .\templates\azuredeploy.json`
 - Azure CLI (from root of repo): `az deployment sub create --location eastus --template-file .\templates\azuredeploy.json`

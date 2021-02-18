@@ -37,7 +37,7 @@
         },
         "zipPackageUrl": {
             "type": "string",
-            "defaultValue": "https://github.com/rjygraham/HAEventHubs/releases/download/latest/EventHubMerge.zip",
+            "defaultValue": "https://github.com/rjygraham/HAEventHub/releases/download/latest/EventHubMerge.zip",
             "metadata": {
                 "description": "URL to MSDeploy zip file of Function App to do the Event Hubs merge."
             }
