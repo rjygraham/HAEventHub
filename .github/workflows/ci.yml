@@ -18,11 +18,11 @@ jobs:
       with:
         dotnet-version: 3.1.101
     - name: Install dependencies
-      run: dotnet restore ./src/HAEventHubs.sln
+      run: dotnet restore ./src/HAEventHub.sln
     - name: Build
-      run: dotnet build ./src/HAEventHubs.sln --configuration Release --no-restore
+      run: dotnet build ./src/HAEventHub.sln --configuration Release --no-restore
     - name: Test
-      run: dotnet test ./src/HAEventHubs.sln --no-restore --verbosity normal
+      run: dotnet test ./src/HAEventHub.sln --no-restore --verbosity normal
     - name: Publish
       run: dotnet build ./src/EventHubMerge/EventHubMerge.csproj -p:DeployOnBuild=true -p:PublishProfile=Release -p:WebPublishMethod=Package -p:PackageAsSingleFile=true -p:platform="Any CPU" -p:Configuration="Release" -o ./publish
     - name: Automatic Releases
